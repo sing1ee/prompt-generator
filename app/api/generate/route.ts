@@ -2,8 +2,6 @@ import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { promises as fs } from 'fs';
 import path from 'path';
-import { headers } from 'next/headers';
-import { isRateLimited } from '@/app/lib/rate-limiter';
 
 // Create an OpenAI API client
 const openai = new OpenAI({
@@ -13,22 +11,6 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const headersList = headers();
-    const ip = headersList.get('x-forwarded-for') || 'unknown';
-    
-    // Check rate limit
-    const { limited, remainingTime } = isRateLimited(ip);
-    if (limited) {
-      return new Response(
-        JSON.stringify({ 
-          error: `请等待 ${remainingTime} 秒后再试` 
-        }), 
-        { 
-          status: 429,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
 
     const { requirement } = await request.json();
 
@@ -52,6 +34,7 @@ export async function POST(request: NextRequest) {
     注意：
     1. 作者都设置为 AI
     2. 结果只要 prompt 本身所在的代码块，不做其他任何解释
+    3. 如果出现李继刚，则替换为 AI
     \n${template}`;
 
     // Create streaming response

@@ -4,13 +4,14 @@ interface RateLimiter {
 }
 
 const rateLimitMap = new Map<string, RateLimiter>();
+const GLOBAL_KEY = 'global_rate_limit';
 
-export function isRateLimited(identifier: string, limitDuration: number = 5000): { limited: boolean; remainingTime: number } {
+export function isRateLimited(limitDuration: number = 5000): { limited: boolean; remainingTime: number } {
   const now = Date.now();
-  const limiter = rateLimitMap.get(identifier);
+  const limiter = rateLimitMap.get(GLOBAL_KEY);
 
   if (!limiter) {
-    rateLimitMap.set(identifier, { timestamp: now, count: 1 });
+    rateLimitMap.set(GLOBAL_KEY, { timestamp: now, count: 1 });
     return { limited: false, remainingTime: 0 };
   }
 
@@ -23,6 +24,6 @@ export function isRateLimited(identifier: string, limitDuration: number = 5000):
     };
   }
 
-  rateLimitMap.set(identifier, { timestamp: now, count: 1 });
+  rateLimitMap.set(GLOBAL_KEY, { timestamp: now, count: 1 });
   return { limited: false, remainingTime: 0 };
 }
