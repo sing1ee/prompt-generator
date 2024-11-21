@@ -22,7 +22,11 @@ export async function POST(request: NextRequest) {
     const template = await fs.readFile(templatePath, 'utf-8');
 
     // Construct the prompt
-    const prompt = `参考以下的 prompt，为 "${requirement}" 创建 prompt：\n\n${template}`;
+    const prompt = `参考以下的 prompt，为 "${requirement}" 创建 prompt：\n
+    注意：
+    1. 作者都设置为 AI
+    2. 结果只要 prompt 本身所在的代码块，不做其他任何解释
+    \n${template}`;
 
     // Create streaming response
     const stream = await openai.chat.completions.create({

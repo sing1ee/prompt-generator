@@ -31,7 +31,7 @@ const formSchema = z.object({
 export default function PromptGenerator() {
   const [generatedPrompt, setGeneratedPrompt] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<{[key: string]: boolean}>({});
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -107,6 +107,27 @@ export default function PromptGenerator() {
     }
   }
 
+  // 复制代码到剪贴板
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(prev => ({ ...prev, [index]: true }));
+      setTimeout(() => {
+        setCopied(prev => ({ ...prev, [index]: false }));
+      }, 2000);
+      toast({
+        title: "Copied!",
+        description: "Code has been copied to clipboard.",
+      });
+    } catch (err) {
+      toast({
+        title: "Failed to copy",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex flex-col gap-8">
@@ -149,51 +170,45 @@ export default function PromptGenerator() {
             <h2 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100">
               Generated Prompt
             </h2>
-            {generatedPrompt && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  await navigator.clipboard.writeText(generatedPrompt);
-                  setCopied(true);
-                  toast({
-                    title: "Copied!",
-                    description: "Prompt copied to clipboard",
-                  });
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 mr-2" />
-                ) : (
-                  <Copy className="h-4 w-4 mr-2" />
-                )}
-                {copied ? "Copied!" : "Copy"}
-              </Button>
-            )}
           </div>
           <div className="prose prose-neutral dark:prose-invert max-w-none">
             {generatedPrompt ? (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
-                  code({node, inline, className, children, ...props}) {
+                  code: ({ node, className, children, ...props }) => {
                     const match = /language-(\w+)/.exec(className || '');
-                    return !inline && match ? (
-                      <SyntaxHighlighter
-                        {...props}
-                        style={oneDark}
-                        language={match[1]}
-                        PreTag="div"
-                        className="!mt-0"
-                      >
-                        {String(children).replace(/\n$/, '')}
-                      </SyntaxHighlighter>
-                    ) : (
-                      <code {...props} className={className}>
-                        {children}
-                      </code>
-                    )
+                    const codeString = String(children).replace(/\n$/, '');
+
+                    // 生成唯一的索引
+                    const codeIndex = Math.random().toString(36).substring(7);
+
+                    return (
+                      <div className="relative group">
+                        <div className="absolute right-2 top-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => copyToClipboard(codeString, Number(codeIndex))}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            {copied[codeIndex] ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <SyntaxHighlighter
+                          style={oneDark}
+                          language={match?.[1] || 'text'}
+                          PreTag="div"
+                          className="!mt-0"
+                        >
+                          {codeString}
+                        </SyntaxHighlighter>
+                      </div>
+                    );
                   },
                   // Preserve line breaks
                   p: ({children}) => <p className="whitespace-pre-wrap mb-4">{children}</p>,
