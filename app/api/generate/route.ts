@@ -1,42 +1,64 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
+import OpenAI from 'openai';
+import { promises as fs } from 'fs';
+import path from 'path';
 
+// Create an OpenAI API client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  baseURL: process.env.OPENAI_API_BASE_URL,
+});
 
 export async function POST(request: NextRequest) {
   try {
     const { requirement } = await request.json();
 
     if (!requirement) {
-      return NextResponse.json(
-        { error: 'Requirement is required' },
-        { status: 400 }
-      );
+      throw new Error('Requirement is required');
     }
 
-    const prompt = `# Generated Prompt
+    // Read the template file
+    const templatePath = path.join(process.cwd(), 'app/api/templates/prompt.md');
+    const template = await fs.readFile(templatePath, 'utf-8');
 
-## Context
-You are an AI assistant tasked with ${requirement.toLowerCase()}
+    // Construct the prompt
+    const prompt = `参考以下的 prompt，为 "${requirement}" 创建 prompt：\n\n${template}`;
 
-## Instructions
-1. Understand the user's requirements thoroughly
-2. Provide detailed and relevant responses
-3. Maintain a professional and helpful tone
-4. Consider all aspects of the request
+    // Create streaming response
+    const stream = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-3.5-turbo',
+      temperature: 0.7,
+      messages: [{ role: 'user', content: prompt }],
+      stream: true,
+    });
 
-## Format
-Please structure your response in a clear and organized manner, using appropriate headings and bullet points where necessary.
+    // Set up the headers for streaming response
+    const headers = {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    };
 
-## Additional Notes
-- Be concise yet comprehensive
-- Use examples when helpful
-- Maintain clarity and precision`;
+    // Create a new ReadableStream
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        for await (const chunk of stream) {
+          const content = chunk.choices[0]?.delta?.content;
+          if (content) {
+            // Send the content as a Server-Sent Event
+            controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`));
+          }
+        }
+        controller.close();
+      },
+    });
 
-    return NextResponse.json({ prompt });
+    return new Response(readableStream, { headers });
   } catch (error) {
     console.error('Error generating prompt:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate prompt' },
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({ error: 'Failed to generate prompt' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

@@ -23,13 +23,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 
 const formSchema = z.object({
-  requirement: z.string().min(10, {
+  requirement: z.string().min(2, {
     message: "Requirement must be at least 10 characters long",
   }),
 });
 
 export default function PromptGenerator() {
   const [generatedPrompt, setGeneratedPrompt] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
@@ -41,6 +42,9 @@ export default function PromptGenerator() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsGenerating(true);
+    setGeneratedPrompt("");
+    
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
@@ -54,8 +58,40 @@ export default function PromptGenerator() {
         throw new Error('Failed to generate prompt');
       }
 
-      const data = await response.json();
-      setGeneratedPrompt(data.prompt);
+      // Get the response as a stream
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('Failed to read response');
+      }
+
+      // Read the stream
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+
+        // Decode the stream data
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        // Process each line
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(5));
+              if (data.content) {
+                setGeneratedPrompt((prev) => prev + data.content);
+              }
+            } catch (e) {
+              console.error('Error parsing JSON:', e);
+            }
+          }
+        }
+      }
+
       toast({
         title: "Prompt Generated!",
         description: "Your prompt has been generated successfully.",
@@ -66,6 +102,8 @@ export default function PromptGenerator() {
         description: "Failed to generate prompt. Please try again.",
         variant: "destructive",
       });
+    } finally {
+      setIsGenerating(false);
     }
   }
 
@@ -89,6 +127,7 @@ export default function PromptGenerator() {
                         <Textarea
                           placeholder="Enter your requirements here..."
                           className="min-h-[200px] resize-none"
+                          disabled={isGenerating}
                           {...field}
                         />
                       </FormControl>
@@ -96,9 +135,9 @@ export default function PromptGenerator() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full">
+                <Button type="submit" className="w-full" disabled={isGenerating}>
                   <Wand2 className="mr-2 h-4 w-4" />
-                  Generate Prompt
+                  {isGenerating ? "Generating..." : "Generate Prompt"}
                 </Button>
               </form>
             </Form>
