@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { headers } from 'next/headers';
+import { isRateLimited } from '@/app/lib/rate-limiter';
 
 // Create an OpenAI API client
 const openai = new OpenAI({
@@ -11,6 +13,23 @@ const openai = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
+    const headersList = headers();
+    const ip = headersList.get('x-forwarded-for') || 'unknown';
+    
+    // Check rate limit
+    const { limited, remainingTime } = isRateLimited(ip);
+    if (limited) {
+      return new Response(
+        JSON.stringify({ 
+          error: `请等待 ${remainingTime} 秒后再试` 
+        }), 
+        { 
+          status: 429,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const { requirement } = await request.json();
 
     if (!requirement) {

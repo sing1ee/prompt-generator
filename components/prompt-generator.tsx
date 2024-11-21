@@ -51,11 +51,18 @@ export default function PromptGenerator() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ requirement: values.requirement }),
+        body: JSON.stringify(values),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate prompt');
+        const error = await response.json();
+        toast({
+          variant: "destructive",
+          title: "错误",
+          description: error.error,
+        });
+        setIsGenerating(false);
+        return;
       }
 
       // Get the response as a stream
