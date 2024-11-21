@@ -23,9 +23,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 
 const formSchema = z.object({
-  requirement: z.string().min(2, {
-    message: "Requirement must be at least 10 characters long",
-  }),
+  requirement: z.string()
+    .min(2, { message: "需求描述至少需要2个字" })
+    .max(100, { message: "需求描述最长100个字" }),
 });
 
 export default function PromptGenerator() {

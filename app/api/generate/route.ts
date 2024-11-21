@@ -17,6 +17,13 @@ export async function POST(request: NextRequest) {
       throw new Error('Requirement is required');
     }
 
+    if (requirement.length > 100) {
+      return new Response(JSON.stringify({ error: '需求描述最长100个字' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     // Read the template file
     const templatePath = path.join(process.cwd(), 'app/api/templates/prompt.md');
     const template = await fs.readFile(templatePath, 'utf-8');
